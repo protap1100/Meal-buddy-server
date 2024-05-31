@@ -23,6 +23,7 @@ async function run() {
 
   const database = client.db("MealBuddy");
   const userCollection = database.collection("users");
+  const mealsCollection = database.collection("mealsCollection");
 
   // Users Related Api
   app.post("/users", async (req, res) => {
@@ -39,6 +40,11 @@ async function run() {
 
   app.get('/users',async(req,res)=>{
     const result = await userCollection.find().toArray();
+    res.send(result)
+  })
+
+  app.get('/meals',async(req,res)=>{
+    const result = await mealsCollection.find().toArray();
     res.send(result)
   })
 
