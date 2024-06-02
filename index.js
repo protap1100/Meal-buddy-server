@@ -20,7 +20,6 @@ const client = new MongoClient(uri, {
 });
 
 async function run() {
-
   const database = client.db("MealBuddy");
   const userCollection = database.collection("users");
   const mealsCollection = database.collection("mealsCollection");
@@ -38,36 +37,67 @@ async function run() {
     res.send(result);
   });
 
-
-  app.get('/users',async(req,res)=>{
+  // User Related Api's
+  app.get("/users", async (req, res) => {
     const result = await userCollection.find().toArray();
-    res.send(result)
-  })
+    res.send(result);
+  });
 
-  app.get('/meals',async(req,res)=>{
-    const result = await mealsCollection.find().toArray();
-    res.send(result)
-  })
+  app.get("/users/:email", async (req, res) => {
+    const userEmail = req.params.email;
+    let query = {};
+    if (req.query?.email) {
+      query = { email: userEmail };
+    }
+    console.log("user email", userEmail, "query", query);
+    const cursor = await userCollection.findOne(query);
+    // console.log(cursor)
+    res.send(cursor);
+  });
 
-  app.get('/meals/:id',async(req,res)=>{
+  app.delete("/users/:id", async (req, res) => {
     const id = req.params.id;
-    const query = {_id : new ObjectId(id)}
+    const query = { _id: new ObjectId(id) };
+    const user = await userCollection.findOne(query);
+    if (!user) {
+      return res.status(404).send({ message: "User not found" });
+    }
+    if (user.role === "admin") {
+      return res.status(403).send({ message: "Admin users cannot be deleted" });
+    }
+    const result = await userCollection.deleteOne(query);
+    res.send(result);
+  });
+
+  app.get("/meals", async (req, res) => {
+    const result = await mealsCollection.find().toArray();
+    res.send(result);
+  });
+
+  app.get("/meals/:id", async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
     const result = await mealsCollection.findOne(query);
-    res.send(result)
-  })
+    res.send(result);
+  });
 
   // Contact Us Adding
-  app.post('/contact', async(req,res)=>{
+  app.post("/contact", async (req, res) => {
     const contactData = req.body;
-    const result = await contactCollection.insertOne(contactData)
-    res.send(result)
-  })
+    const result = await contactCollection.insertOne(contactData);
+    res.send(result);
+  });
 
-  app.get('/contact',async(req,res)=>{
-    const result =await contactCollection.find().toArray();
-    res.send(result)
+  app.get("/contact", async (req, res) => {
+    const result = await contactCollection.find().toArray();
+    res.send(result);
+  });
+  app.delete('/contact/:id',async(req,res)=>{
+    const id = req.params.id
+    const query = {_id : new ObjectId(id)}
+    const result = await contactCollection.deleteOne(query);
+    res.send(result);
   })
-
 
   try {
     // Connect the client to the server	(optional starting in v4.7)
