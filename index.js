@@ -24,6 +24,7 @@ async function run() {
   const database = client.db("MealBuddy");
   const userCollection = database.collection("users");
   const mealsCollection = database.collection("mealsCollection");
+  const contactCollection = database.collection("contactCollection");
 
   // Users Related Api
   app.post("/users", async (req, res) => {
@@ -54,6 +55,19 @@ async function run() {
     const result = await mealsCollection.findOne(query);
     res.send(result)
   })
+
+  // Contact Us Adding
+  app.post('/contact', async(req,res)=>{
+    const contactData = req.body;
+    const result = await contactCollection.insertOne(contactData)
+    res.send(result)
+  })
+
+  app.get('/contact',async(req,res)=>{
+    const result =await contactCollection.find().toArray();
+    res.send(result)
+  })
+
 
   try {
     // Connect the client to the server	(optional starting in v4.7)
