@@ -25,6 +25,8 @@ async function run() {
   const mealsCollection = database.collection("mealsCollection");
   const contactCollection = database.collection("contactCollection");
   const upcomingMeals = database.collection("upcomingMeals");
+  const servingMeals = database.collection("servingMeals");
+  const reviewCollection = database.collection("reviewCollection");
 
   // Meals Related Api's
   app.post("/meals", async (req, res) => {
@@ -38,31 +40,31 @@ async function run() {
     res.send(result);
   });
 
-  app.delete('/meals/:id',async(req,res)=>{
+  app.delete("/meals/:id", async (req, res) => {
     const id = req.params.id;
-    const query = {_id: new ObjectId(id)}
+    const query = { _id: new ObjectId(id) };
     const result = await mealsCollection.deleteOne(query);
-    res.send(result)
-  })
+    res.send(result);
+  });
 
-  // Upcoming Meals Related Api's 
-  app.post('/upcomingMeals',async(req,res)=>{
+  // Upcoming Meals Related Api's
+  app.post("/upcomingMeals", async (req, res) => {
     const uMeal = req.body;
     const result = await upcomingMeals.insertOne(uMeal);
     res.send(result);
-  })
+  });
 
-  app.get('/upcomingMeals',async(req,res)=>{
+  app.get("/upcomingMeals", async (req, res) => {
     const result = await upcomingMeals.find().toArray();
     res.send(result);
-  })
+  });
 
-  app.delete('/upcomingMeals/:id',async(req,res)=>{
+  app.delete("/upcomingMeals/:id", async (req, res) => {
     const id = req.params.id;
-    const query = {_id: new ObjectId(id)}
+    const query = { _id: new ObjectId(id) };
     const result = await upcomingMeals.deleteOne(query);
-    res.send(result)
-  })
+    res.send(result);
+  });
 
   app.post("/transferMeal/:id", async (req, res) => {
     const id = req.params.id;
@@ -73,8 +75,47 @@ async function run() {
     if (!deleteResult.deletedCount) {
       await mealsCollection.deleteOne({ _id: result.insertedId });
     }
-    res.send({ message: "Meal transferred successfully"});
+    res.send({ message: "Meal transferred successfully" });
   });
+
+  // Reserved Meals Api's
+  app.post("/servedMeals", async (req, res) => {
+    const Meals = req.body;
+    const result = await servingMeals.insertOne(Meals);
+    res.send(result);
+  });
+
+  app.get("/servingMeals", async (req, res) => {
+    const meals = await servingMeals.find().toArray();
+    res.send(meals);
+  });
+
+  // Review's Related Post
+  app.post("/review", async (req, res) => {
+    const review = req.body;
+    const mealId = review.MealId;
+    const filter = { _id: new ObjectId(mealId) };
+    const findDoc = await mealsCollection.findOne(filter);
+    const updatedReviewsCount = findDoc.reviews + 1;
+    const query = { $set: { reviews: updatedReviewsCount } };
+    const updateDoc = await mealsCollection.updateOne(filter, query);
+    const result = await reviewCollection.insertOne(review);
+    res.send({ result, updateDoc });
+  });
+  
+
+  // app.get("/reviews", async(req,res)=>{
+  //   const result = await reviewCollection.find().toArray();
+  //   res.send(result)
+  // })
+
+  app.get("/reviews", async (req, res) => {
+    const mealId = req.query.mealId;
+    const query = { MealId: mealId };
+    const results = await reviewCollection.find(query).toArray();
+    res.send(results);
+  });
+  
 
   // Users Related Api
   app.post("/users", async (req, res) => {
