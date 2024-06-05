@@ -90,6 +90,26 @@ async function run() {
     res.send(meals);
   });
 
+  app.get('/sServingMeals/:email', async(req,res)=>{
+    const email = req.params.email;
+    const filter = {email : email}
+    const result = await servingMeals.find(filter).toArray();
+    res.send(result)
+  })
+
+  // Like Related Api's
+  app.patch('/likes/:id', async(req,res)=>{
+    const id = req.params.id;
+    const filter = {_id: new ObjectId(id)}
+    const findDoc = await mealsCollection.findOne(filter)
+    const updateLike = findDoc.likes + 1
+    const query = {$set : {likes : updateLike}};
+    const updateData = await mealsCollection.updateOne(filter,query)
+    res.send(updateData)
+  })
+
+
+
   // Review's Related Post
   app.post("/review", async (req, res) => {
     const review = req.body;
@@ -102,12 +122,11 @@ async function run() {
     const result = await reviewCollection.insertOne(review);
     res.send({ result, updateDoc });
   });
-  
 
-  // app.get("/reviews", async(req,res)=>{
-  //   const result = await reviewCollection.find().toArray();
-  //   res.send(result)
-  // })
+  app.get("/allReviews", async (req, res) => {
+    const result = await reviewCollection.find().toArray();
+    res.send(result);
+  });
 
   app.get("/reviews", async (req, res) => {
     const mealId = req.query.mealId;
@@ -115,7 +134,20 @@ async function run() {
     const results = await reviewCollection.find(query).toArray();
     res.send(results);
   });
-  
+
+  app.delete("/deleteReviews/:id", async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const review = await reviewCollection.findOne(query);
+    const deleteResult = await reviewCollection.deleteOne(query);
+    const mealId = review.MealId;
+    const mealQuery = { _id: new ObjectId(mealId) };
+    await mealsCollection.updateOne(mealQuery, { $inc: { reviews: -1 } });
+    res.send({
+      message: "Review deleted and review count updated",
+      deleteResult,
+    });
+  });
 
   // Users Related Api
   app.post("/users", async (req, res) => {
