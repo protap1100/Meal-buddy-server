@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const cors = require("cors");
+var jwt = require("jsonwebtoken");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
 
@@ -27,6 +28,75 @@ async function run() {
   const upcomingMeals = database.collection("upcomingMeals");
   const servingMeals = database.collection("servingMeals");
   const reviewCollection = database.collection("reviewCollection");
+
+  // jwt related api's
+  app.post("/jwt", async (req, res) => {
+    const user = req.body;
+    const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+      expiresIn: "20d",
+    });
+    res.send({ token });
+  });
+
+  const verifyToken = (req, res, next) => {
+    console.log(req.headers.authorization.split(" ")[1]);
+    if (!req.headers.authorization) {
+      return res.status(401).send({ message: "Forbidden Access" });
+    }
+    const token = req.headers.authorization.split(" ")[1];
+    // console.log(token)
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
+      if (error) {
+        return res.status(401).send({ message: "Forbidden Access" });
+      }
+      req.decoded = decoded;
+      next();
+    });
+  };
+
+  // Users Related Api
+  app.post("/users", async (req, res) => {
+    const user = req.body;
+    const query = { email: user.email };
+    const existingUser = await userCollection.findOne(query);
+    if (existingUser) {
+      return res.send({ message: "User Already Exist" });
+    }
+    const result = await userCollection.insertOne(user);
+    res.send(result);
+  });
+
+  // User Related Api's
+  app.get("/users",verifyToken, async (req, res) => {
+    // console.log(req.headers);
+    const result = await userCollection.find().toArray();
+    res.send(result);
+  });
+
+  app.get("/users/:email", async (req, res) => {
+    const userEmail = req.params.email;
+    let query = {};
+    if (req.params?.email) {
+      query = { email: userEmail };
+    }
+    const cursor = await userCollection.findOne(query);
+    // console.log(cursor)
+    res.send(cursor);
+  });
+
+  app.get('/user/admin/:email', verifyToken , async (req,res)=>{
+    const email = req.params.email;
+    if(email !== req.params.email){
+      return res.status(403).send({message : 'unauthorized access'})
+    }
+    const query = {email :email } ;
+    const user = await userCollection.findOne(query)
+    let admin =  false;
+    if(user){
+      admin = user?.role === "admin";
+    } 
+    res.send({admin})
+  })
 
   // Meals Related Api's
   app.post("/meals", async (req, res) => {
@@ -90,25 +160,23 @@ async function run() {
     res.send(meals);
   });
 
-  app.get('/sServingMeals/:email', async(req,res)=>{
+  app.get("/sServingMeals/:email", async (req, res) => {
     const email = req.params.email;
-    const filter = {email : email}
+    const filter = { email: email };
     const result = await servingMeals.find(filter).toArray();
-    res.send(result)
-  })
+    res.send(result);
+  });
 
   // Like Related Api's
-  app.patch('/likes/:id', async(req,res)=>{
+  app.patch("/likes/:id", async (req, res) => {
     const id = req.params.id;
-    const filter = {_id: new ObjectId(id)}
-    const findDoc = await mealsCollection.findOne(filter)
-    const updateLike = findDoc.likes + 1
-    const query = {$set : {likes : updateLike}};
-    const updateData = await mealsCollection.updateOne(filter,query)
-    res.send(updateData)
-  })
-
-
+    const filter = { _id: new ObjectId(id) };
+    const findDoc = await mealsCollection.findOne(filter);
+    const updateLike = findDoc.likes + 1;
+    const query = { $set: { likes: updateLike } };
+    const updateData = await mealsCollection.updateOne(filter, query);
+    res.send(updateData);
+  });
 
   // Review's Related Post
   app.post("/review", async (req, res) => {
@@ -147,36 +215,6 @@ async function run() {
       message: "Review deleted and review count updated",
       deleteResult,
     });
-  });
-
-  // Users Related Api
-  app.post("/users", async (req, res) => {
-    const user = req.body;
-    const query = { email: user.email };
-    const existingUser = await userCollection.findOne(query);
-    if (existingUser) {
-      return res.send({ message: "User Already Exist" });
-    }
-    const result = await userCollection.insertOne(user);
-    res.send(result);
-  });
-
-  // User Related Api's
-  app.get("/users", async (req, res) => {
-    const result = await userCollection.find().toArray();
-    res.send(result);
-  });
-
-  app.get("/users/:email", async (req, res) => {
-    const userEmail = req.params.email;
-    let query = {};
-    if (req.query?.email) {
-      query = { email: userEmail };
-    }
-    console.log("user email", userEmail, "query", query);
-    const cursor = await userCollection.findOne(query);
-    // console.log(cursor)
-    res.send(cursor);
   });
 
   app.delete("/users/:id", async (req, res) => {
