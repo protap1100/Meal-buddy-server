@@ -1,13 +1,31 @@
+require("dotenv").config();
 const express = require("express");
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const cors = require("cors");
 var jwt = require("jsonwebtoken");
-require("dotenv").config();
 const port = process.env.PORT || 5000;
 
+// MiddleWare
 app.use(cors());
 app.use(express.json());
+
+// Custom Middleware
+const verifyToken = (req, res, next) => {
+  // console.log("auth token", req.headers.authorization);
+  if (!req.headers.authorization) {
+    return res.status(401).send({ message: "Unauthorized Access" });
+  }
+  const token = req.headers.authorization.split(" ")[1];
+  // console.log(token)
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
+    if (error) {
+      return res.status(401).send({ message: "Forbidden Access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.l5d87as.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -29,30 +47,25 @@ async function run() {
   const servingMeals = database.collection("servingMeals");
   const reviewCollection = database.collection("reviewCollection");
 
+  const verifyAdmin = async (req, res, next) => {
+    const email = req.decoded.email;
+    const query = { email: email };
+    const user = await userCollection.findOne(query);
+    const isAdmin = user.role === "admin";
+    if (!isAdmin) {
+      return res.status(403).send({ message: "Forbidden Access" });
+    }
+    next();
+  };
+
   // jwt related api's
   app.post("/jwt", async (req, res) => {
     const user = req.body;
     const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-      expiresIn: "20d",
+      expiresIn: "1d",
     });
     res.send({ token });
   });
-
-  const verifyToken = (req, res, next) => {
-    console.log(req.headers.authorization.split(" ")[1]);
-    if (!req.headers.authorization) {
-      return res.status(401).send({ message: "Forbidden Access" });
-    }
-    const token = req.headers.authorization.split(" ")[1];
-    // console.log(token)
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (error, decoded) => {
-      if (error) {
-        return res.status(401).send({ message: "Forbidden Access" });
-      }
-      req.decoded = decoded;
-      next();
-    });
-  };
 
   // Users Related Api
   app.post("/users", async (req, res) => {
@@ -67,7 +80,7 @@ async function run() {
   });
 
   // User Related Api's
-  app.get("/users",verifyToken, async (req, res) => {
+  app.get("/users",verifyToken, verifyAdmin,  async (req, res) => {
     // console.log(req.headers);
     const result = await userCollection.find().toArray();
     res.send(result);
@@ -84,19 +97,19 @@ async function run() {
     res.send(cursor);
   });
 
-  app.get('/user/admin/:email', verifyToken , async (req,res)=>{
+  app.get("/user/admin/:email", async (req, res) => {
     const email = req.params.email;
-    if(email !== req.params.email){
-      return res.status(403).send({message : 'unauthorized access'})
+    if (email !== req.params.email) {
+      return res.status(403).send({ message: "unauthorized access" });
     }
-    const query = {email :email } ;
-    const user = await userCollection.findOne(query)
-    let admin =  false;
-    if(user){
+    const query = { email: email };
+    const user = await userCollection.findOne(query);
+    let admin = false;
+    if (user) {
       admin = user?.role === "admin";
-    } 
-    res.send({admin})
-  })
+    }
+    res.send({ admin });
+  });
 
   // Meals Related Api's
   app.post("/meals", async (req, res) => {
@@ -124,7 +137,7 @@ async function run() {
     res.send(result);
   });
 
-  app.get("/upcomingMeals", async (req, res) => {
+  app.get("/upcomingMeals",verifyToken, verifyAdmin,  async (req, res) => {
     const result = await upcomingMeals.find().toArray();
     res.send(result);
   });
@@ -155,7 +168,7 @@ async function run() {
     res.send(result);
   });
 
-  app.get("/servingMeals", async (req, res) => {
+  app.get("/servingMeals",verifyToken, verifyAdmin, async (req, res) => {
     const meals = await servingMeals.find().toArray();
     res.send(meals);
   });
@@ -191,7 +204,7 @@ async function run() {
     res.send({ result, updateDoc });
   });
 
-  app.get("/allReviews", async (req, res) => {
+  app.get("/allReviews",verifyToken, verifyAdmin, async (req, res) => {
     const result = await reviewCollection.find().toArray();
     res.send(result);
   });
@@ -203,7 +216,7 @@ async function run() {
     res.send(results);
   });
 
-  app.delete("/deleteReviews/:id", async (req, res) => {
+  app.delete("/deleteReviews/:id",verifyToken, verifyAdmin, async (req, res) => {
     const id = req.params.id;
     const query = { _id: new ObjectId(id) };
     const review = await reviewCollection.findOne(query);
@@ -217,7 +230,7 @@ async function run() {
     });
   });
 
-  app.delete("/users/:id", async (req, res) => {
+  app.delete("/users/:id",verifyToken, verifyAdmin, async (req, res) => {
     const id = req.params.id;
     const query = { _id: new ObjectId(id) };
     const user = await userCollection.findOne(query);
@@ -257,11 +270,11 @@ async function run() {
     res.send(result);
   });
 
-  app.get("/contact", async (req, res) => {
+  app.get("/contact",verifyToken, verifyAdmin, async (req, res) => {
     const result = await contactCollection.find().toArray();
     res.send(result);
   });
-  app.delete("/contact/:id", async (req, res) => {
+  app.delete("/contact/:id",verifyToken, verifyAdmin, async (req, res) => {
     const id = req.params.id;
     const query = { _id: new ObjectId(id) };
     const result = await contactCollection.deleteOne(query);
