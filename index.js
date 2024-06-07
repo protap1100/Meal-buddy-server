@@ -3,6 +3,7 @@ const express = require("express");
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const cors = require("cors");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 var jwt = require("jsonwebtoken");
 const port = process.env.PORT || 5000;
 
@@ -46,6 +47,7 @@ async function run() {
   const upcomingMeals = database.collection("upcomingMeals");
   const servingMeals = database.collection("servingMeals");
   const reviewCollection = database.collection("reviewCollection");
+  // const memberCollection = database.collection('membership')
 
   const verifyAdmin = async (req, res, next) => {
     const email = req.decoded.email;
@@ -280,6 +282,43 @@ async function run() {
     const result = await contactCollection.deleteOne(query);
     res.send(result);
   });
+
+  // Payment Related Api's
+  app.post('/create-payment-intent',async(req,res)=>{
+    const {price}= req.body;
+    const amount = parseInt(price * 100);
+    // console.log(amount)
+    const paymentIntent = await  stripe.paymentIntents.create({
+      amount : amount,
+      currency : 'usd',
+      payment_method_types :['card']
+    })
+
+    res.send({
+      clientSecret: paymentIntent.client_secret
+    })
+  })
+
+
+  app.post('/payments',async(req,res)=>{
+    // const payment =req.body;
+    const email = req.body.email;
+    const badge = req.body.badge;
+    const filter = {email : email};
+    const findUser = await userCollection.findOne(filter);
+    // console.log(findUser)
+    const updateBadge = {
+      $set: {
+        badge: badge,
+      },
+    };
+    const updateUserBadge = await userCollection.updateOne(filter,updateBadge)
+    console.log(updateBadge)
+    res.send(updateUserBadge);
+
+  })
+
+
 
   try {
     // Connect the client to the server	(optional starting in v4.7)
