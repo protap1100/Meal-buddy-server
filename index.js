@@ -47,7 +47,7 @@ async function run() {
   const upcomingMeals = database.collection("upcomingMeals");
   const servingMeals = database.collection("servingMeals");
   const reviewCollection = database.collection("reviewCollection");
-  // const memberCollection = database.collection('membership')
+  const paymentCollection = database.collection("payments");
 
   const verifyAdmin = async (req, res, next) => {
     const email = req.decoded.email;
@@ -82,7 +82,7 @@ async function run() {
   });
 
   // User Related Api's
-  app.get("/users",verifyToken, verifyAdmin,  async (req, res) => {
+  app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
     // console.log(req.headers);
     const result = await userCollection.find().toArray();
     res.send(result);
@@ -139,7 +139,7 @@ async function run() {
     res.send(result);
   });
 
-  app.get("/upcomingMeals",verifyToken, verifyAdmin,  async (req, res) => {
+  app.get("/upcomingMeals", async (req, res) => {
     const result = await upcomingMeals.find().toArray();
     res.send(result);
   });
@@ -170,15 +170,29 @@ async function run() {
     res.send(result);
   });
 
-  app.get("/servingMeals",verifyToken, verifyAdmin, async (req, res) => {
-    const meals = await servingMeals.find().toArray();
+  // app.get("/servingMeals", verifyToken, verifyAdmin, async (req, res) => {
+  //   const meals = await servingMeals
+  //     .find({ ServingStatus: "Pending" })
+  //     .toArray();
+  //   res.send(meals);
+  // });
+
+  app.get("/servingMeals", verifyToken, verifyAdmin, async (req, res) => {
+    const meals = await servingMeals.find({ServingStatus : 'Paid'}).toArray();
     res.send(meals);
   });
 
   app.get("/sServingMeals/:email", async (req, res) => {
     const email = req.params.email;
-    const filter = { email: email };
+    const filter = { email: email, ServingStatus: "Pending" };
     const result = await servingMeals.find(filter).toArray();
+    res.send(result);
+  });
+
+  app.delete("/userCart/:id", async (req, res) => {
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) };
+    const result = await servingMeals.deleteOne(filter);
     res.send(result);
   });
 
@@ -206,7 +220,7 @@ async function run() {
     res.send({ result, updateDoc });
   });
 
-  app.get("/allReviews",verifyToken, verifyAdmin, async (req, res) => {
+  app.get("/allReviews", verifyToken, verifyAdmin, async (req, res) => {
     const result = await reviewCollection.find().toArray();
     res.send(result);
   });
@@ -218,21 +232,26 @@ async function run() {
     res.send(results);
   });
 
-  app.delete("/deleteReviews/:id",verifyToken, verifyAdmin, async (req, res) => {
-    const id = req.params.id;
-    const query = { _id: new ObjectId(id) };
-    const review = await reviewCollection.findOne(query);
-    const deleteResult = await reviewCollection.deleteOne(query);
-    const mealId = review.MealId;
-    const mealQuery = { _id: new ObjectId(mealId) };
-    await mealsCollection.updateOne(mealQuery, { $inc: { reviews: -1 } });
-    res.send({
-      message: "Review deleted and review count updated",
-      deleteResult,
-    });
-  });
+  app.delete(
+    "/deleteReviews/:id",
+    verifyToken,
+    verifyAdmin,
+    async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const review = await reviewCollection.findOne(query);
+      const deleteResult = await reviewCollection.deleteOne(query);
+      const mealId = review.MealId;
+      const mealQuery = { _id: new ObjectId(mealId) };
+      await mealsCollection.updateOne(mealQuery, { $inc: { reviews: -1 } });
+      res.send({
+        message: "Review deleted and review count updated",
+        deleteResult,
+      });
+    }
+  );
 
-  app.delete("/users/:id",verifyToken, verifyAdmin, async (req, res) => {
+  app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
     const id = req.params.id;
     const query = { _id: new ObjectId(id) };
     const user = await userCollection.findOne(query);
@@ -272,11 +291,11 @@ async function run() {
     res.send(result);
   });
 
-  app.get("/contact",verifyToken, verifyAdmin, async (req, res) => {
+  app.get("/contact", verifyToken, verifyAdmin, async (req, res) => {
     const result = await contactCollection.find().toArray();
     res.send(result);
   });
-  app.delete("/contact/:id",verifyToken, verifyAdmin, async (req, res) => {
+  app.delete("/contact/:id", verifyToken, verifyAdmin, async (req, res) => {
     const id = req.params.id;
     const query = { _id: new ObjectId(id) };
     const result = await contactCollection.deleteOne(query);
@@ -284,41 +303,50 @@ async function run() {
   });
 
   // Payment Related Api's
-  app.post('/create-payment-intent',async(req,res)=>{
-    const {price}= req.body;
+  app.post("/create-payment-intent", async (req, res) => {
+    const { price } = req.body;
     const amount = parseInt(price * 100);
     // console.log(amount)
-    const paymentIntent = await  stripe.paymentIntents.create({
-      amount : amount,
-      currency : 'usd',
-      payment_method_types :['card']
-    })
-
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: "usd",
+      payment_method_types: ["card"],
+    });
     res.send({
-      clientSecret: paymentIntent.client_secret
-    })
-  })
+      clientSecret: paymentIntent.client_secret,
+    });
+  });
 
+  app.post("/payments", async (req, res) => {
+    const payment = req.body;
+    const paymentResult = await paymentCollection.insertOne(payment);
+    console.log("payment info", payment);
+    const query = {
+      _id: {
+        $in: payment.cartIds.map((id) => new ObjectId(id)),
+      },
+    };
+    const updateResult = await servingMeals.updateMany(query, {
+      $set: { ServingStatus: "Paid" },
+    });
 
-  app.post('/payments',async(req,res)=>{
+    res.send({ paymentResult, updateResult });
+  });
+
+  app.patch("/payments", async (req, res) => {
     // const payment =req.body;
     const email = req.body.email;
     const badge = req.body.badge;
-    const filter = {email : email};
-    const findUser = await userCollection.findOne(filter);
-    // console.log(findUser)
+    const filter = { email: email };
     const updateBadge = {
       $set: {
         badge: badge,
       },
     };
-    const updateUserBadge = await userCollection.updateOne(filter,updateBadge)
-    console.log(updateBadge)
+    const updateUserBadge = await userCollection.updateOne(filter, updateBadge);
+    console.log(updateBadge);
     res.send(updateUserBadge);
-
-  })
-
-
+  });
 
   try {
     // Connect the client to the server	(optional starting in v4.7)
