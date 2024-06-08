@@ -334,7 +334,7 @@ async function run() {
   });
 
   app.patch("/payments", async (req, res) => {
-    // const payment =req.body;
+    const payment =req.body;
     const email = req.body.email;
     const badge = req.body.badge;
     const filter = { email: email };
@@ -344,9 +344,17 @@ async function run() {
       },
     };
     const updateUserBadge = await userCollection.updateOne(filter, updateBadge);
+    const paymentResult = await paymentCollection.insertOne(payment);
     console.log(updateBadge);
-    res.send(updateUserBadge);
+    res.send({updateUserBadge,paymentResult});
   });
+
+  app.get('/paymentHistory', async(req,res)=>{
+    const result = await paymentCollection.find().toArray();
+    res.send(result);
+  })
+
+
 
   try {
     // Connect the client to the server	(optional starting in v4.7)
