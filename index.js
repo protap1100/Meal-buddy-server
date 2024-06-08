@@ -232,6 +232,18 @@ async function run() {
     res.send(results);
   });
 
+  app.get("/singleReviews/:email", async (req, res) => {
+    const email = req.params.email;
+    const result = await reviewCollection.find({email : email}).toArray();
+    res.send(result);
+  });
+
+  app.delete("/singleReviewsDelete/:email", async (req, res) => {
+    const email = req.params.email;
+    const result = await reviewCollection.deleteOne({email : email});
+    res.send(result);
+  });
+
   app.delete(
     "/deleteReviews/:id",
     verifyToken,
