@@ -132,6 +132,34 @@ async function run() {
     res.send(result);
   });
 
+  app.get("/updateMeals/:id", async (req, res) => {
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) };
+    const result = await mealsCollection.findOne(filter);
+    res.send(result);
+  });
+
+  app.patch("/updateMeals/:id", async (req, res) => {
+    const id = req.params.id;
+    const updateMeals = req.body;
+    const filter = { _id: new ObjectId(id) };
+    const updateData = {
+      $set: { 
+        title: updateMeals.title,
+        category : updateMeals.category,
+        price: updateMeals.price,
+        description: updateMeals.description,
+        rating: updateMeals.rating,
+        image:updateMeals.image,
+        ingredients : updateMeals.ingredients
+       },
+    };
+    const result = await mealsCollection.updateOne(filter, updateData);
+    console.log(updateMeals);
+    console.log(result);
+    res.send(result)
+  });
+
   // Upcoming Meals Related Api's
   app.post("/upcomingMeals", async (req, res) => {
     const uMeal = req.body;
@@ -140,7 +168,7 @@ async function run() {
   });
 
   app.get("/upcomingMeals", async (req, res) => {
-    const result = await upcomingMeals.find().toArray();
+    const result = await upcomingMeals.find().sort({ likes: -1 }).toArray();
     res.send(result);
   });
 
@@ -149,6 +177,34 @@ async function run() {
     const query = { _id: new ObjectId(id) };
     const result = await upcomingMeals.deleteOne(query);
     res.send(result);
+  });
+
+  app.get("/upcomingMeals/:id", async (req, res) => {
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) };
+    const result = await upcomingMeals.findOne(filter);
+    res.send(result);
+  });
+
+  app.patch("/updateUpcomingMeals/:id", async (req, res) => {
+    const id = req.params.id;
+    const updateMeals = req.body;
+    const filter = { _id: new ObjectId(id) };
+    const updateData = {
+      $set: { 
+        title: updateMeals.title,
+        category : updateMeals.category,
+        price: updateMeals.price,
+        description: updateMeals.description,
+        rating: updateMeals.rating,
+        image:updateMeals.image,
+        ingredients : updateMeals.ingredients
+       },
+    };
+    const result = await upcomingMeals.updateOne(filter, updateData);
+    console.log(updateMeals);
+    console.log(result);
+    res.send(result)
   });
 
   app.post("/transferMeal/:id", async (req, res) => {
@@ -178,7 +234,7 @@ async function run() {
   // });
 
   app.get("/servingMeals", verifyToken, verifyAdmin, async (req, res) => {
-    const meals = await servingMeals.find({ServingStatus : 'Paid'}).toArray();
+    const meals = await servingMeals.find().toArray();
     res.send(meals);
   });
 
@@ -196,15 +252,51 @@ async function run() {
     res.send(result);
   });
 
-  // Like Related Api's
   app.patch("/likes/:id", async (req, res) => {
-    const id = req.params.id;
-    const filter = { _id: new ObjectId(id) };
-    const findDoc = await mealsCollection.findOne(filter);
-    const updateLike = findDoc.likes + 1;
-    const query = { $set: { likes: updateLike } };
-    const updateData = await mealsCollection.updateOne(filter, query);
-    res.send(updateData);
+    const mealId = req.params.id;
+    const userId = req.body.userId;
+    const filter = { _id: new ObjectId(mealId) };
+    const meal = await mealsCollection.findOne(filter);
+    if (meal.likedBy && meal.likedBy.includes(userId)) {
+      return res
+        .status(400)
+        .send({ message: "You Have Already Like This Meal" });
+    }
+    const updateLike = meal.likes + 1;
+    const updateData = {
+      $set: { likes: updateLike },
+      $push: { likedBy: userId },
+    };
+    const result = await mealsCollection.updateOne(filter, updateData);
+    res.send(result);
+  });
+
+  app.patch("/upcomingLikes/:id", async (req, res) => {
+    const mealId = req.params.id;
+    const userId = req.body.userId;
+    const filter = { _id: new ObjectId(mealId) };
+    const meal = await upcomingMeals.findOne(filter);
+    if (!meal) {
+      return res.status(404).send({ message: "Meal not found" });
+    }
+    if (meal.likedBy && meal.likedBy.includes(userId)) {
+      return res
+        .status(400)
+        .send({ message: "You have already liked this meal" });
+    }
+    const updateData = {
+      $inc: { likes: 1 },
+      $addToSet: { likedBy: userId },
+    };
+    const result = await upcomingMeals.updateOne(filter, updateData);
+    if (meal.likes + 1 >= 10) {
+      // Move meal to mealsCollection
+      const updatedMeal = await upcomingMeals.findOne(filter);
+      await mealsCollection.insertOne(updatedMeal);
+      // Remove meal from upcomingMeals
+      await upcomingMeals.deleteOne(filter);
+    }
+    res.send(result);
   });
 
   // Review's Related Post
@@ -234,13 +326,13 @@ async function run() {
 
   app.get("/singleReviews/:email", async (req, res) => {
     const email = req.params.email;
-    const result = await reviewCollection.find({email : email}).toArray();
+    const result = await reviewCollection.find({ email: email }).toArray();
     res.send(result);
   });
 
   app.delete("/singleReviewsDelete/:email", async (req, res) => {
     const email = req.params.email;
-    const result = await reviewCollection.deleteOne({email : email});
+    const result = await reviewCollection.deleteOne({ email: email });
     res.send(result);
   });
 
@@ -346,7 +438,7 @@ async function run() {
   });
 
   app.patch("/payments", async (req, res) => {
-    const payment =req.body;
+    const payment = req.body;
     const email = req.body.email;
     const badge = req.body.badge;
     const filter = { email: email };
@@ -358,15 +450,16 @@ async function run() {
     const updateUserBadge = await userCollection.updateOne(filter, updateBadge);
     const paymentResult = await paymentCollection.insertOne(payment);
     console.log(updateBadge);
-    res.send({updateUserBadge,paymentResult});
+    res.send({ updateUserBadge, paymentResult });
   });
 
-  app.get('/paymentHistory', async(req,res)=>{
-    const result = await paymentCollection.find().toArray();
+  app.get("/paymentHistory/:email", async (req, res) => {
+    const email = req.params.email;
+    const filter = { email: email };
+    const result = await paymentCollection.find(filter).toArray();
+    console.log(result);
     res.send(result);
-  })
-
-
+  });
 
   try {
     // Connect the client to the server	(optional starting in v4.7)
