@@ -132,6 +132,16 @@ async function run() {
     res.send(result);
   });
 
+  app.get('/filterMeals', async(req,res)=>{
+    const minPrice = parseInt(req.query.minPrice);
+    const maxPrice = parseInt(req.query.maxPrice);
+    const query = {
+      price: { $gte: minPrice, $lte: maxPrice },
+    };
+    const result = await mealsCollection.find(query).toArray();
+    res.send(result)
+  })
+
   app.delete("/meals/:id", async (req, res) => {
     const id = req.params.id;
     const query = { _id: new ObjectId(id) };
@@ -468,11 +478,23 @@ async function run() {
     res.send(result);
   });
 
+  app.get('/admin-state', async(req,res)=>{
+    const users = await userCollection.find().toArray();
+    const meals = await mealsCollection.find().toArray();
+    const contacts = await contactCollection.find().toArray();
+    const served = await servingMeals.find().toArray();
+    const review = await reviewCollection.find().toArray();
+    const payment = await paymentCollection.find().toArray();
+    res.send({users,meals,contacts,served,review,payment})
+  })
+
+
+
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
