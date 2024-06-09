@@ -464,6 +464,7 @@ async function run() {
         badge: badge,
       },
     };
+    console.log(filter)
     const updateUserBadge = await userCollection.updateOne(filter, updateBadge);
     const paymentResult = await paymentCollection.insertOne(payment);
     console.log(updateBadge);
