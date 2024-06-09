@@ -125,6 +125,13 @@ async function run() {
     res.send(result);
   });
 
+  app.get("/searchMeals", async (req, res) => {
+    const title = req.query.title;
+    const regex = new RegExp(title, "i"); 
+    const result = await mealsCollection.find({ title: { $regex: regex } }).toArray();
+    res.send(result);
+  });
+
   app.delete("/meals/:id", async (req, res) => {
     const id = req.params.id;
     const query = { _id: new ObjectId(id) };
@@ -144,20 +151,20 @@ async function run() {
     const updateMeals = req.body;
     const filter = { _id: new ObjectId(id) };
     const updateData = {
-      $set: { 
+      $set: {
         title: updateMeals.title,
-        category : updateMeals.category,
+        category: updateMeals.category,
         price: updateMeals.price,
         description: updateMeals.description,
         rating: updateMeals.rating,
-        image:updateMeals.image,
-        ingredients : updateMeals.ingredients
-       },
+        image: updateMeals.image,
+        ingredients: updateMeals.ingredients,
+      },
     };
     const result = await mealsCollection.updateOne(filter, updateData);
     console.log(updateMeals);
     console.log(result);
-    res.send(result)
+    res.send(result);
   });
 
   // Upcoming Meals Related Api's
@@ -191,20 +198,20 @@ async function run() {
     const updateMeals = req.body;
     const filter = { _id: new ObjectId(id) };
     const updateData = {
-      $set: { 
+      $set: {
         title: updateMeals.title,
-        category : updateMeals.category,
+        category: updateMeals.category,
         price: updateMeals.price,
         description: updateMeals.description,
         rating: updateMeals.rating,
-        image:updateMeals.image,
-        ingredients : updateMeals.ingredients
-       },
+        image: updateMeals.image,
+        ingredients: updateMeals.ingredients,
+      },
     };
     const result = await upcomingMeals.updateOne(filter, updateData);
     console.log(updateMeals);
     console.log(result);
-    res.send(result)
+    res.send(result);
   });
 
   app.post("/transferMeal/:id", async (req, res) => {
