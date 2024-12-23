@@ -5,7 +5,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const cors = require("cors");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 var jwt = require("jsonwebtoken");
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 5001;
 
 // MiddleWare
 app.use(cors());
@@ -127,20 +127,22 @@ async function run() {
 
   app.get("/searchMeals", async (req, res) => {
     const title = req.query.title;
-    const regex = new RegExp(title, "i"); 
-    const result = await mealsCollection.find({ title: { $regex: regex } }).toArray();
+    const regex = new RegExp(title, "i");
+    const result = await mealsCollection
+      .find({ title: { $regex: regex } })
+      .toArray();
     res.send(result);
   });
 
-  app.get('/filterMeals', async(req,res)=>{
+  app.get("/filterMeals", async (req, res) => {
     const minPrice = parseInt(req.query.minPrice);
     const maxPrice = parseInt(req.query.maxPrice);
     const query = {
       price: { $gte: minPrice, $lte: maxPrice },
     };
     const result = await mealsCollection.find(query).toArray();
-    res.send(result)
-  })
+    res.send(result);
+  });
 
   app.delete("/meals/:id", async (req, res) => {
     const id = req.params.id;
@@ -464,7 +466,7 @@ async function run() {
         badge: badge,
       },
     };
-    console.log(filter)
+    console.log(filter);
     const updateUserBadge = await userCollection.updateOne(filter, updateBadge);
     const paymentResult = await paymentCollection.insertOne(payment);
     console.log(updateBadge);
@@ -479,17 +481,15 @@ async function run() {
     res.send(result);
   });
 
-  app.get('/admin-state', async(req,res)=>{
+  app.get("/admin-state", async (req, res) => {
     const users = await userCollection.find().toArray();
     const meals = await mealsCollection.find().toArray();
     const contacts = await contactCollection.find().toArray();
     const served = await servingMeals.find().toArray();
     const review = await reviewCollection.find().toArray();
     const payment = await paymentCollection.find().toArray();
-    res.send({users,meals,contacts,served,review,payment})
-  })
-
-
+    res.send({ users, meals, contacts, served, review, payment });
+  });
 
   try {
     // Connect the client to the server	(optional starting in v4.7)
